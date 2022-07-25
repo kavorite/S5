@@ -11,6 +11,7 @@ from train_helpers import create_train_state, train_epoch_normal, \
     reduce_lr_on_plateau, linear_warmup, cosine_annealing, constant_lr
 import wandb
 
+
 def train(
         USE_WANDB=False,  # log with wandb
         wandb_project=None,  # wandb project name
@@ -42,9 +43,10 @@ def train(
         opt_config="noBCdecay",  # B and/or C weight decay Options: [noBdecay, BandCdecay, noBCdecay]
         jax_seed=8915814  # set JAX randomness, affects B,C,D,Delta init and dropout
         ):
+    """Main function to train over a certain number of epochs"""
 
     if USE_WANDB:
-        #Make wandb config dictionary
+        # Make wandb config dictionary
         config = {
                 "dataset": dataset,
                 "n_layers": n_layers,
@@ -74,16 +76,15 @@ def train(
                  }
 
         wandb.init(project=wandb_project, job_type='model_training',
-                   config= config, entity=wandb_entity)
+                   config=config, entity=wandb_entity)
     else:
         wandb.init(mode='offline')
 
-
-    #determine the size of initial blocks
+    # determine the size of initial blocks
     block_size = int(ssm_size / blocks)
     wandb.log({"block_size": block_size})
 
-    #Set non-ssm learning rate lr (e.g. encoders, etc.) as functino of ssm_lr
+    # Set non-ssm learning rate lr (e.g. encoders, etc.) as functino of ssm_lr
     lr = lr_factor * ssm_lr
 
     # Set randomness...
@@ -94,14 +95,14 @@ def train(
     # Get dataset creation function
     create_dataset_fn = Datasets[dataset]
 
-    #Have to use different train_epoch function if inputs need to be one_hotted (for now...)
+    # Have to use different train_epoch function if inputs need to be one_hotted (for now...)
     if dataset in ["imdb-classification", "listops-classification", "aan-classification"]:
         print("Using Vocab train and val steps because dataset is: " + dataset)
         train_epoch = train_epoch_vocab
         validate = validate_vocab
         padded = True
         if dataset in ["aan-classification"]:
-            #Use retreival model for document matching
+            # Use retreival model for document matching
             retrieval = True
             print("Using retreival model for document matching")
         else:
@@ -112,22 +113,21 @@ def train(
         padded = False
         retrieval = False
 
-    #For speech dataset
+    # For speech dataset
     if dataset in ["speech-classification"]:
         speech = True
         print("Will evaluate on both resolutions for speech task")
     else:
         speech = False
 
-    #For pathx dataset
+    # For pathx dataset
     if dataset in ["pathx-classification"]:
         print("initializing with smaller timescales for pathx")
         dt_min = 0.0001
         dt_max = 0.01
     else:
-        dt_min=0.001
-        dt_max=0.1
-
+        dt_min = 0.001
+        dt_max = 0.1
 
     # Create dataset...
     if speech:
@@ -140,29 +140,30 @@ def train(
                                                                                                        bsz=bsz)
     print(f"[*] Starting S5 Training on `{dataset}` =>> Initializing...")
 
-
-    #Initialize state matrix A using approximation to HiPPO-LegS matrix
+    # Initialize state matrix A using approximation to HiPPO-LegS matrix
     Lambda, V = make_Normal_HiPPO(block_size)
     Vc = V.conj().T
 
-    #If initializing state matrix A as block-diagonal, put HiPPO approximation
+    # If initializing state matrix A as block-diagonal, put HiPPO approximation
     # on each block
-    Lambda = (Lambda*np.ones((blocks,block_size))).ravel()
-    V = block_diag(*([V] * blocks) )
-    Vinv = block_diag(*([Vc] * blocks) )
+    Lambda = (Lambda*np.ones((blocks, block_size))).ravel()
+    V = block_diag(*([V] * blocks))
+    Vinv = block_diag(*([Vc] * blocks))
 
-
-    ssm_init_fn = init_S5SSM(H=d_model, P=ssm_size, k=k,
-                                       Lambda_init=Lambda,
-                                       V=V, Vinv=Vinv,
-                                       BC_init=BC_init,
-                                       discretization=discretization,
-                                       dt_min=dt_min,
-                                       dt_max=dt_max)
-
+    ssm_init_fn = init_S5SSM(H=d_model,
+                             P=ssm_size,
+                             k=k,
+                             Lambda_init=Lambda,
+                             V=V,
+                             Vinv=Vinv,
+                             BC_init=BC_init,
+                             discretization=discretization,
+                             dt_min=dt_min,
+                             dt_max=dt_max
+                             )
 
     if retrieval:
-        #Use retrieval head for AAN task
+        # Use retrieval head for AAN task
         print("Using Retrieval head for {} task".format(dataset))
         model_cls = partial(
             RetrievalModel,
@@ -172,9 +173,9 @@ def train(
             n_layers=n_layers,
             padded=padded,
             dropout=p_dropout,
-            prenorm= prenorm,
-            batchnorm= batchnorm,
-            bn_momentum= bn_momentum,
+            prenorm=prenorm,
+            batchnorm=batchnorm,
+            bn_momentum=bn_momentum,
         )
 
     else:
@@ -186,13 +187,13 @@ def train(
             n_layers=n_layers,
             padded=padded,
             dropout=p_dropout,
-            mode= mode,
-            prenorm= prenorm,
-            batchnorm= batchnorm,
-            bn_momentum= bn_momentum,
+            mode=mode,
+            prenorm=prenorm,
+            batchnorm=batchnorm,
+            bn_momentum=bn_momentum,
         )
 
-    #initialize training state
+    # initialize training state
     state = create_train_state(
         model_cls,
         init_rng,
@@ -201,19 +202,18 @@ def train(
         in_dim=in_dim,
         bsz=bsz,
         seq_len=seq_len,
-        weight_decay = weight_decay,
+        weight_decay=weight_decay,
         batchnorm=batchnorm,
-        opt_config = opt_config,
+        opt_config=opt_config,
         ssm_lr=ssm_lr,
         lr=lr
         )
 
-
     # Training Loop over epochs
-    best_loss, best_acc, best_epoch = 10000, 0, 0  #Note: this best loss is val_loss
-    count, best_val_loss = 0, 10000  #Note: this line is for early stopping purposes
-    lr_count, opt_acc = 0, 0.0 #This line is for learning rate decay
-    step = 0  #for per step learning rate decay
+    best_loss, best_acc, best_epoch = 10000, 0, 0  # Note: this best loss is val_loss
+    count, best_val_loss = 0, 10000  # Note: this line is for early stopping purposes
+    lr_count, opt_acc = 0, 0.0  # This line is for learning rate decay
+    step = 0  # for per step learning rate decay
     steps_per_epoch = int(train_size/bsz)
     for epoch in range(epochs):
         print(f"[*] Starting Training Epoch {epoch + 1}...")
@@ -226,7 +226,7 @@ def train(
         elif cosine_anneal:
             print("using cosine annealing for epoch {}".format(epoch+1))
             decay_function = cosine_annealing
-            end_step = steps_per_epoch * epochs - (steps_per_epoch * warmup_end) # for per step learning rate decay
+            end_step = steps_per_epoch * epochs - (steps_per_epoch * warmup_end)  # for per step learning rate decay
         else:
             print("using constant lr for epoch {}".format(epoch+1))
             decay_function = constant_lr
@@ -252,7 +252,7 @@ def train(
                                          seq_len,
                                          in_dim,
                                          batchnorm
-            )
+                                         )
 
             print(f"[*] Running Epoch {epoch + 1} Test...")
             test_loss, test_acc = validate(state,
@@ -270,7 +270,7 @@ def train(
             )
 
         else:
-            #else use test set as validation set
+            # else use test set as validation set
             print(f"[*] Running Epoch {epoch + 1} Test...")
             val_loss, val_acc = validate(state,
                                          model_cls,
@@ -285,14 +285,14 @@ def train(
                 f" Test Accuracy: {val_acc:.4f}"
             )
 
-        #For early stopping purposes
+        # For early stopping purposes
         if val_loss < best_val_loss:
             count = 0
             best_val_loss = val_loss
         else:
-            count +=1
+            count += 1
 
-        if (val_acc > best_acc):
+        if val_acc > best_acc:
             count = 0
             best_loss, best_acc, best_epoch = val_loss, val_acc, epoch
             if valloader is not None:
@@ -301,7 +301,7 @@ def train(
                 best_test_loss, best_test_acc = best_loss, best_acc
 
             if speech:
-                #Evaluate on resolution 2 val and test sets
+                # Evaluate on resolution 2 val and test sets
                 print(f"[*] Running Epoch {epoch + 1} Res 2 Validation...")
                 val2_loss, val2_acc = validate(state,
                                                model_cls,
@@ -322,11 +322,11 @@ def train(
                     f" Test Accuracy: {test2_acc:.4f}"
                 )
 
-        #For learning rate decay purposes:
+        # For learning rate decay purposes:
         input = lr, ssm_lr, lr_count, val_acc, opt_acc
         lr, ssm_lr, lr_count, opt_acc = reduce_lr_on_plateau(input,
-                                                         factor=reduce_factor,
-                                                         patience=lr_patience)
+                                                             factor=reduce_factor,
+                                                             patience=lr_patience)
 
         # Print best accuracy & loss so far...
         print(
@@ -405,6 +405,7 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
+
 if __name__ == "__main__":
     import argparse
 
@@ -444,11 +445,10 @@ if __name__ == "__main__":
     parser.add_argument("--reduce_factor", type=float, default=0.2)
     parser.add_argument("--p_dropout", type=float, default=0.2)
     parser.add_argument("--weight_decay", type=float, default=0.01)
-    parser.add_argument("--opt_config", default="standard", type=str)  #["standard", "Bdecay", "noCdecay"]
+    parser.add_argument("--opt_config", default="standard", type=str)  # ["standard", "Bdecay", "noCdecay"]
     parser.add_argument("--jax_seed", type=int, default=-1)
 
     args = parser.parse_args()
-
 
     train(
         USE_WANDB=args.USE_WANDB,
@@ -463,21 +463,21 @@ if __name__ == "__main__":
         BC_init=args.BC_init,
         k=args.k,
         discretization=args.discretization,
-        mode = args.mode,
+        mode=args.mode,
         prenorm=args.prenorm,
         batchnorm=args.batchnorm,
         bn_momentum=args.bn_momentum,
         bsz=args.bsz,
         epochs=args.epochs,
-        early_stop_patience = args.early_stop_patience,
+        early_stop_patience=args.early_stop_patience,
         ssm_lr=args.ssm_lr,
         lr_factor=args.lr_factor,
-        cosine_anneal = args.cosine_anneal,
-        warmup_end = args.warmup_end,
+        cosine_anneal=args.cosine_anneal,
+        warmup_end=args.warmup_end,
         lr_patience=args.lr_patience,
-        reduce_factor = args.reduce_factor,
+        reduce_factor=args.reduce_factor,
         p_dropout=args.p_dropout,
         weight_decay=args.weight_decay,
-        opt_config= args.opt_config,
-        jax_seed= args.jax_seed
+        opt_config=args.opt_config,
+        jax_seed=args.jax_seed
         )

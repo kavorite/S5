@@ -26,6 +26,7 @@ def make_HiPPO(N):
     mat = [[v(n, k) for k in range(1, N + 1)] for n in range(1, N + 1)]
     return -onp.array(mat)
 
+
 def make_Normal_HiPPO(N):
     """ Create a normal approximation to HiPPO-LegS matrix.
          For HiPPO matrix A, A=S+pqT is normal plus low-rank for
@@ -45,7 +46,6 @@ def make_Normal_HiPPO(N):
              V      (complex64): eigenvectors of S (N,N)
      """
 
-
     # Make -HiPPO
     nhippo = make_HiPPO(N)
 
@@ -57,8 +57,9 @@ def make_Normal_HiPPO(N):
     # Diagonalize S to V \Lambda V^*
     Lambda, V = onp.linalg.eig(S)
 
-    #Convert to jax array
+    # Convert to jax array
     return np.array(Lambda), np.array(V)
+
 
 def log_step_initializer(dt_min=0.001, dt_max=0.1):
     """ Initialize the learnable stepsize Delta by sampling
@@ -86,6 +87,7 @@ def log_step_initializer(dt_min=0.001, dt_max=0.1):
 
     return init
 
+
 def init_log_steps(key, input):
     """ Initialize an array of learnable stepsizes
 
@@ -104,6 +106,7 @@ def init_log_steps(key, input):
         log_steps.append(log_step)
 
     return np.array(log_steps)
+
 
 def init_columnwise_B(key, shape):
     """ Initialize B matrix in columnwise fashion.
@@ -137,6 +140,7 @@ def init_columnwise_B(key, shape):
         Bs.append(B)
     return np.array(Bs)[:, :, 0]
 
+
 def init_VinvB(init_fun, rng, shape, Vinv):
     """ Initialize B_tilde=V^{-1}B. First samples B. Then computes V^{-1}B.
         Note we will parameterize this with two different matrices for complex
@@ -154,7 +158,8 @@ def init_VinvB(init_fun, rng, shape, Vinv):
     VinvB = Vinv @ B
     VinvB_real = VinvB.real
     VinvB_imag = VinvB.imag
-    return np.concatenate((VinvB_real[...,None], VinvB_imag[...,None]), axis=-1)
+    return np.concatenate((VinvB_real[..., None], VinvB_imag[..., None]), axis=-1)
+
 
 def init_columnwise_VinvB(init_fun, rng, shape, Vinv):
     """Same function as above, but with transpose applied to prevent shape mismatch
@@ -165,7 +170,8 @@ def init_columnwise_VinvB(init_fun, rng, shape, Vinv):
     VinvB = Vinv @ B
     VinvB_real = VinvB.real
     VinvB_imag = VinvB.imag
-    return np.concatenate((VinvB_real[...,None], VinvB_imag[...,None]), axis=-1)
+    return np.concatenate((VinvB_real[..., None], VinvB_imag[..., None]), axis=-1)
+
 
 def init_rowwise_C(key, shape):
     """ Initialize C matrix in rowwise fashion. Analogous to init_columnwise_B function above.
@@ -187,6 +193,7 @@ def init_rowwise_C(key, shape):
         Cs.append(C)
     return np.array(Cs)[:, 0]
 
+
 def init_CV(init_fun, rng, shape, V):
     """ Initialize C_tilde=BV. First samples C. Then computes CV.
         Note we will parameterize this with two different matrices for complex
@@ -205,25 +212,4 @@ def init_CV(init_fun, rng, shape, V):
     CV = C @ V
     CV_real = CV.real
     CV_imag = CV.imag
-    return np.concatenate((CV_real[...,None], CV_imag[...,None]), axis=-1)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return np.concatenate((CV_real[..., None], CV_imag[..., None]), axis=-1)

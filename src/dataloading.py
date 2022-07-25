@@ -85,6 +85,7 @@ def create_and_cache_imdb_dataset():
 
     return None
 
+
 def make_imdb_data_loader(file_path, seed, batch_size=128, shuffle=True, drop_last=True):
     # Load the pickled dataset.
     with open(file_path, 'rb') as f:
@@ -118,22 +119,20 @@ def create_imdb_classification_dataset(dir_name, bsz=50, seed=42):
     SEQ_LENGTH, N_CLASSES, IN_DIM, TRAIN_SIZE = 2048, 2, 135, 25000
 
     trainloader = make_imdb_data_loader(dir_name + "/imdb/imdb_trn.p", seed=seed, batch_size=bsz)
-    testloader = make_imdb_data_loader(dir_name + "/imdb/imdb_tst.p", seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
+    testloader = make_imdb_data_loader(dir_name + "/imdb/imdb_tst.p",
+                                       seed=seed,
+                                       batch_size=bsz,
+                                       drop_last=False,
+                                       shuffle=False
+                                       )
 
-    #Note we will use test set as validation set as done in LRA paper and S4 paper
-    #see line 811 in https://github.com/HazyResearch/state-spaces/blob/main/src/dataloaders/datasets.py
-    #for confirmation of this
-    valloader=None
+    # Note we will use test set as validation set as done in LRA paper and S4 paper
+    # see line 811 in https://github.com/HazyResearch/state-spaces/blob/main/src/dataloaders/datasets.py
+    # for confirmation of this
+    valloader = None
     return trainloader, valloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
-
 
 
 Datasets = {
     "imdb-classification": create_imdb_classification_dataset
             }
-
-
-
-
-
-

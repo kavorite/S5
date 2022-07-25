@@ -41,10 +41,10 @@ class StackedEncoderModel(nn.Module):
                 dropout=self.dropout,
                 d_model=self.d_model,
                 training=self.training,
-                prenorm = self.prenorm,
-                batchnorm = self.batchnorm,
-                bn_momentum = self.bn_momentum,
-                step_scale = self.step_scale,
+                prenorm=self.prenorm,
+                batchnorm=self.batchnorm,
+                bn_momentum=self.bn_momentum,
+                step_scale=self.step_scale,
             )
             for _ in range(self.n_layers)
         ]
@@ -66,7 +66,7 @@ class StackedEncoderModel(nn.Module):
         return x
 
 
-def masked_meanpool(x, l):
+def masked_meanpool(x, lengths):
     """
     Helper function to perform mean pooling across the sequence length
     when sequences have variable lengths. We only want to pool across
@@ -74,16 +74,17 @@ def masked_meanpool(x, l):
 
     Args:
          x (float32): input sequence (L, d_model)
-         l (int32):   the original length of the sequence before padding
+         lengths (int32):   the original length of the sequence before padding
     Returns:
         mean pooled output sequence (float32): (d_model)
 
     """
     L = x.shape[0]
-    mask = np.arange(L) < l
-    return np.sum(mask[...,None]*x, axis=0)/l
+    mask = np.arange(L) < lengths
+    return np.sum(mask[..., None]*x, axis=0)/lengths
 
-#Here we call vmap to parallelize across a batch of input sequences
+
+# Here we call vmap to parallelize across a batch of input sequences
 batch_masked_meanpool = jax.vmap(masked_meanpool)
 
 
@@ -130,11 +131,11 @@ class ClassificationModel(nn.Module):
                             d_model=self.d_model,
                             n_layers=self.n_layers,
                             dropout=self.dropout,
-                            training = self.training,
-                            prenorm= self.prenorm,
-                            batchnorm= self.batchnorm,
-                            bn_momentum= self.bn_momentum,
-                            step_scale= self.step_scale,
+                            training=self.training,
+                            prenorm=self.prenorm,
+                            batchnorm=self.batchnorm,
+                            bn_momentum=self.bn_momentum,
+                            step_scale=self.step_scale,
                                         )
         self.decoder = nn.Dense(self.d_output)
 
@@ -150,7 +151,7 @@ class ClassificationModel(nn.Module):
 
         """
         if self.padded:
-            x, length = x #input consists data and prepadded seq lens
+            x, length = x  # input consists data and prepadded seq lens
 
         x = self.encoder(x)
         if self.mode in ["pool"]:
@@ -172,7 +173,8 @@ class ClassificationModel(nn.Module):
         x = self.decoder(x)
         return nn.log_softmax(x, axis=-1)
 
-#Here we call vmap to parallelize across a batch of input sequences
+
+# Here we call vmap to parallelize across a batch of input sequences
 BatchClassificationModel = nn.vmap(
     ClassificationModel,
     in_axes=0,
@@ -182,7 +184,7 @@ BatchClassificationModel = nn.vmap(
 )
 
 
-#For Document matching task (e.g. AAN)
+# For Document matching task (e.g. AAN)
 class RetrievalDecoder(nn.Module):
     """
     Defines the decoder to be used for document matching tasks,
@@ -197,6 +199,7 @@ class RetrievalDecoder(nn.Module):
     """
     d_model: int
     d_output: int
+
     def setup(self):
         """
         Initializes 2 dense layers to be used for the MLP.
@@ -250,7 +253,6 @@ class RetrievalModel(nn.Module):
     batchnorm: bool = False
     bn_momentum: float = 0.9
 
-
     def setup(self):
         """
         Initializes the S5 stacked encoder and the retrieval decoder. Note that here we
@@ -269,11 +271,11 @@ class RetrievalModel(nn.Module):
                             d_model=self.d_model,
                             n_layers=self.n_layers,
                             dropout=self.dropout,
-                            training = self.training,
-                            prenorm= self.prenorm,
-                            batchnorm= self.batchnorm,
-                            bn_momentum= self.bn_momentum,
-                            step_scale= self.step_scale,
+                            training=self.training,
+                            prenorm=self.prenorm,
+                            batchnorm=self.batchnorm,
+                            bn_momentum=self.bn_momentum,
+                            step_scale=self.step_scale,
                                         )
         BatchRetrievalDecoder = nn.vmap(
             RetrievalDecoder,
@@ -285,10 +287,10 @@ class RetrievalModel(nn.Module):
 
         self.decoder = BatchRetrievalDecoder(
                                 d_model=self.d_model,
-                                d_output = self.d_output
+                                d_output=self.d_output
                                           )
 
-    def __call__(self, input): #input is a tuple of x and lengths
+    def __call__(self, input):  # input is a tuple of x and lengths
         """
         Compute the size d_output log softmax output given a
         Lxd_input input sequence. The encoded features are constructed as in
@@ -303,9 +305,9 @@ class RetrievalModel(nn.Module):
 
         """
         x, lengths = input  # x is 2*bsz*seq_len*in_dim, lengths is: (2*bsz,)
-        x = self.encoder(x) #The output is: 2*bszxseq_lenxd_model
-        outs = batch_masked_meanpool(x, lengths) #Avg non-padded values: 2*bszxd_model
-        outs0, outs1 = np.split(outs, 2) #each encoded_i is bszxd_model
-        features = np.concatenate([outs0, outs1, outs0-outs1, outs0*outs1], axis=-1) #bszx4*d_model
+        x = self.encoder(x)  # The output is: 2*bszxseq_lenxd_model
+        outs = batch_masked_meanpool(x, lengths)  # Avg non-padded values: 2*bszxd_model
+        outs0, outs1 = np.split(outs, 2)  # each encoded_i is bszxd_model
+        features = np.concatenate([outs0, outs1, outs0-outs1, outs0*outs1], axis=-1)  # bszx4*d_model
         out = self.decoder(features)
         return nn.log_softmax(out, axis=-1)

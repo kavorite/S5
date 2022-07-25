@@ -1,7 +1,6 @@
 from flax import linen as nn
 
 
-
 class SequenceLayer(nn.Module):
     """ Defines a single S5 layer, with S5 SSM, nonlinearity,
             dropout, batch/layer norm, etc.
@@ -62,21 +61,3 @@ class SequenceLayer(nn.Module):
         if not self.prenorm:
             x = self.norm(x)
         return x
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

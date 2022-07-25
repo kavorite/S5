@@ -18,12 +18,13 @@ def discretize_bilinear(Lambda, B_tilde, Delta):
         Returns:
             discretized Lambda_bar (complex64), B_bar (complex64)  (P,), (P,H)
     """
-    I = np.ones(Lambda.shape[0])
+    Identity = np.ones(Lambda.shape[0])
 
-    BL = 1 / (I - (Delta / 2.0) * Lambda)
-    Lambda_bar = BL * (I + (Delta / 2.0) * Lambda)
+    BL = 1 / (Identity - (Delta / 2.0) * Lambda)
+    Lambda_bar = BL * (Identity + (Delta / 2.0) * Lambda)
     B_bar = (BL * Delta)[..., None] * B_tilde
     return Lambda_bar, B_bar
+
 
 def discretize_zoh(Lambda, B_tilde, Delta):
     """ Discretize a diagonalized, continuous-time linear SSM
@@ -36,10 +37,11 @@ def discretize_zoh(Lambda, B_tilde, Delta):
         Returns:
             discretized Lambda_bar (complex64), B_bar (complex64)  (P,), (P,H)
     """
-    I = np.ones(Lambda.shape[0])
+    Identity = np.ones(Lambda.shape[0])
     Lambda_bar = np.exp(Lambda * Delta)
-    B_bar = (1/Lambda * (Lambda_bar-I))[...,None] * B_tilde
+    B_bar = (1/Lambda * (Lambda_bar-Identity))[..., None] * B_tilde
     return Lambda_bar, B_bar
+
 
 # Parallel scan operations
 @jax.vmap
@@ -51,9 +53,10 @@ def binary_operator(q_i, q_j):
         Returns:
             new element ( A_out, Bu_out )
     """
-    A_i, b_i  = q_i
-    A_j, b_j  = q_j
+    A_i, b_i = q_i
+    A_j, b_j = q_j
     return A_j * A_i, A_j * b_i + b_j
+
 
 def apply_ssm(Lambda_bar, B_bar, C_tilde, D, input_sequence):
     """ Compute the LxH output of discretized SSM given an LxH input.
@@ -72,6 +75,7 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde, D, input_sequence):
 
     _, xs = jax.lax.associative_scan(binary_operator, (Lambda_elements, Bu_elements))
     return jax.vmap(lambda x, u: (C_tilde @ x + D * u).real)(xs, input_sequence)
+
 
 class S5SSM(nn.Module):
     Lambda_init: np.DeviceArray
@@ -113,22 +117,20 @@ class S5SSM(nn.Module):
                                     on a different resolution for the speech commands benchmark
     """
 
-
-
     def setup(self):
         """Initializes parameters once and performs discretization each time
            the SSM is applied to a sequene
         """
 
-        #Initialize diagonal state to state matrix Lambda (eigenvalues)
+        # Initialize diagonal state to state matrix Lambda (eigenvalues)
         self.Lambda = self.param("Lambda",
                                  lambda rng, shape: self.Lambda_init,
                                  (None,))
 
-        #Initialize input to state (B) and state to output (C) matrices
+        # Initialize input to state (B) and state to output (C) matrices
         # in basis of eigenvectors
         if self.BC_init in ["factorized"]:
-            #Use a low rank factorization of rank k for B and C
+            # Use a low rank factorization of rank k for B and C
             self.BH = self.param("BH",
                                  init_columnwise_B,
                                  (self.H, self.k, 2))
@@ -148,7 +150,7 @@ class S5SSM(nn.Module):
                                                             rng, shape, self.V),
                                  (self.k, self.P, 2))
 
-            #Parameterize complex numbers
+            # Parameterize complex numbers
             self.BH = self.BH[..., 0] + 1j * self.BH[..., 1]
             self.BP = self.BP[..., 0] + 1j * self.BP[..., 1]
 
@@ -158,9 +160,8 @@ class S5SSM(nn.Module):
             B_tilde = self.BP @ self.BH
             self.C_tilde = self.CH @ self.CP
 
-
         else:
-            #Initialize B and C as dense matrices
+            # Initialize B and C as dense matrices
             if self.BC_init in ["dense_columns"]:
                 B_eigen_init = init_columnwise_VinvB
                 B_init = init_columnwise_B
@@ -178,26 +179,28 @@ class S5SSM(nn.Module):
                                                                 rng,
                                                                 shape,
                                                                 self.Vinv),
-                                (self.P, self.H) )
+                                (self.P, self.H)
+                                )
             self.C = self.param("C",
                                 lambda rng, shape: init_CV(C_init,
-                                                            rng,
-                                                            shape,
-                                                            self.V),
-                                (self.H, self.P, 2) )
+                                                           rng,
+                                                           shape,
+                                                           self.V),
+                                (self.H, self.P, 2)
+                                )
 
             # Parameterize complex numbers
             B_tilde = self.B[..., 0] + 1j * self.B[..., 1]
             self.C_tilde = self.C[..., 0] + 1j * self.C[..., 1]
 
-        #Initialize feedthrough (D) matrix
+        # Initialize feedthrough (D) matrix
         self.D = self.param("D", uniform(), (self.H,))
 
-        #Initialize learnable discretization step size
+        # Initialize learnable discretization step size
         self.log_step = self.param("log_step", init_log_steps, (self.P, self.dt_min, self.dt_max))
-        step = self.step_scale * np.exp(self.log_step[:,0])
+        step = self.step_scale * np.exp(self.log_step[:, 0])
 
-        #Discretize
+        # Discretize
         if self.discretization in ["zoh"]:
             self.Lambda_bar, self.B_bar = discretize_zoh(self.Lambda, B_tilde, step)
         elif self.discretization in ["bilinear"]:
@@ -219,10 +222,17 @@ class S5SSM(nn.Module):
         return apply_ssm(self.Lambda_bar, self.B_bar, self.C_tilde, self.D, input_sequence)
 
 
-def init_S5SSM(H, P, k, Lambda_init,
-                         V, Vinv,
-                         BC_init,
-                         discretization, dt_min, dt_max):
+def init_S5SSM( H,
+                P,
+                k,
+                Lambda_init,
+                V,
+                Vinv,
+                BC_init,
+                discretization,
+                dt_min,
+                dt_max
+                ):
     """Convenience function that will be used to initialize the SSM.
        Same arguments as defined in S5SSM above."""
     return partial(S5SSM, H=H, P=P, k=k,
@@ -232,21 +242,3 @@ def init_S5SSM(H, P, k, Lambda_init,
                    discretization=discretization,
                    dt_min=dt_min,
                    dt_max=dt_max)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
