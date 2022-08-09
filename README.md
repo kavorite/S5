@@ -1,7 +1,7 @@
 # S5: Simple State Space Layers for Sequence Modeling
 
 This repository provides the official implementation and experiments for the 
-paper: Simple State Space Layers for Sequence Modeling (https://arxiv.org/TBDNEEDTOUPDATE TRY TO INCLUDE pretty Picture like S4 does). 
+paper: Simplified State Space Layers for Sequence Modeling (https://arxiv.org/TBDNEEDTOUPDATE). 
 The core contribution is the S5 layer which is meant to simplify the prior
 S4 approach (https://arxiv.org/abs/2111.00396) while retaining its performance and efficiency.
 
@@ -18,7 +18,7 @@ The rest of the experiments will be added soon!
 
 
 ## Requirements
-If using the Google Colab environment, all of the requirements are already installed.
+If using the Google Colab environment, all requirements are already installed.
 
 To run the code on your own machine, you will need to first install JAX following the instructions at: https://github.com/google/jax#installation, 
 before installing the requirements.txt file.

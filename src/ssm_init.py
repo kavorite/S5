@@ -112,7 +112,11 @@ def init_columnwise_B(key, shape):
     """ Initialize B matrix in columnwise fashion.
         We will sample each column of B from a lecun_normal distribution.
         This gives a different fan-in size then if we sample the entire
-        matrix B at once. We found this approach to be helpful for PathX.
+        matrix B at once. We found this approach to be helpful for PathX
+        It appears to be related to the point in
+        https://arxiv.org/abs/2206.12037 regarding the initialization of
+        the C matrix in S4, so potentially more important for the
+        C initialization than for B.
 
          Args:
              key: jax random key
@@ -142,7 +146,7 @@ def init_columnwise_B(key, shape):
 
 
 def init_VinvB(init_fun, rng, shape, Vinv):
-    """ Initialize B_tilde=V^{-1}B. First samples B. Then computes V^{-1}B.
+    """ Initialize B_tilde=V^{-1}B. First samples B. Then compute V^{-1}B.
         Note we will parameterize this with two different matrices for complex
         numbers.
 
@@ -178,6 +182,9 @@ def init_rowwise_C(key, shape):
         We will sample each row of C from a lecun_normal distribution.
         This gives a different fan-in size then if we sample the entire
         matrix B at once. We found this approach to be helpful for PathX.
+        It appears to be related to the point in
+        https://arxiv.org/abs/2206.12037 regarding the initialization of
+        the C matrix in S4.
 
          Args:
              key: jax random key
@@ -195,7 +202,7 @@ def init_rowwise_C(key, shape):
 
 
 def init_CV(init_fun, rng, shape, V):
-    """ Initialize C_tilde=BV. First samples C. Then computes CV.
+    """ Initialize C_tilde=BV. First sample C. Then compute CV.
         Note we will parameterize this with two different matrices for complex
         numbers.
 
