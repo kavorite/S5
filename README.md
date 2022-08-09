@@ -1,12 +1,12 @@
 # S5: Simple State Space Layers for Sequence Modeling
 
 This repository provides the official implementation and experiments for the 
-paper: Simplified State Space Layers for Sequence Modeling (https://arxiv.org/TBDNEEDTOUPDATE). 
+paper: Simplified State Space Layers for Sequence Modeling.  The preprint is available [here](https://arxiv.org/TBDNEEDTOUPDATE). 
 The core contribution is the S5 layer which is meant to simplify the prior
-S4 approach (https://arxiv.org/abs/2111.00396) while retaining its performance and efficiency.
+S4 approach [paper](https://arxiv.org/abs/2111.00396) while retaining its performance and efficiency.
 
 While it has departed a fair amount, this repository originally started off with much of the JAX implementation of S4 from the
-Annotated S4 blog post by Sasha Rush (https://github.com/srush/annotated-s4). 
+Annotated S4 blog post by Sasha Rush (available [here](https://github.com/srush/annotated-s4)). 
 
 ## Experiments
 The Long Range Arena and 
@@ -37,3 +37,13 @@ src/             source code for models, datasets, etc.
     train.py         training loop entrypoint
     train_helpers.py functions for optimization, training and evaluation steps
 ```
+
+## Citation
+Please use the following when citing our work:
+```
+TBD
+```
+
+Please reach out if you have any questions.  
+
+- The S5 authors.
