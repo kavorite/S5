@@ -10,7 +10,7 @@ Annotated S4 blog post by Sasha Rush (available [here](https://github.com/srush/
 
 ## Experiments
 The Long Range Arena and 
-Speech Commands experiments in the paper were performed using the dataloaders from the Official S4 repository (https://github.com/HazyResearch/state-spaces). 
+Speech Commands experiments in the paper were performed using the dataloaders from the [Official S4 repository](https://github.com/HazyResearch/state-spaces). 
 We are currently in the process of adding dataloaders better suited for our JAX implementation.
 
 We currently provide the ability to run the LRA-Text (character level IMDb classification) experiment easily in a Google Colab notebook (<a href="https://githubtocolab.com/lindermanlab/S5/blob/main/Examples/S5_IMDB_Classification.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab"/></a>). 
@@ -46,4 +46,4 @@ TBD
 
 Please reach out if you have any questions.  
 
-- The S5 authors.
+-- The S5 authors.
