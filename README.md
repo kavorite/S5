@@ -1,7 +1,7 @@
 # S5: Simple State Space Layers for Sequence Modeling
 
 This repository provides the official implementation and experiments for the 
-paper: Simplified State Space Layers for Sequence Modeling.  The preprint is available [here](https://arxiv.org/TBDNEEDTOUPDATE). 
+paper: Simplified State Space Layers for Sequence Modeling.  The preprint is available [here](https://arxiv.org/abs/2208.04933). 
 The core contribution is the S5 layer which is meant to simplify the prior
 S4 approach [paper](https://arxiv.org/abs/2111.00396) while retaining its performance and efficiency.
 
