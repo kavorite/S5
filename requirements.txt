@@ -1,6 +1,1 @@
-flax
-torch
-torchtext
-datasets
-tqdm
-wandb
+-e .
