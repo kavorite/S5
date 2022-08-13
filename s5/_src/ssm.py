@@ -175,7 +175,7 @@ class S5SSM(hk.Module):
             "log_step", shape=(h,), init=init_log_steps(dt_min, dt_max)
         )
 
-    def __call__(self, input_sequence, step_scale=1.0, discretization="zoh"):
+    def __call__(self, input_sequence, *, step_scale=1.0, discretization="zoh"):
         """
         Compute the LxH output of the S5 SSM given an LxH input sequence
         using a parallel scan.
