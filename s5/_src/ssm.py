@@ -95,10 +95,8 @@ class S5SSM(hk.Module):
         p: int,
         k: int,
         BC_init: str,
-        discretization: str,
         dt_min: float,
         dt_max: float,
-        step_scale: float = 1.0,
     ):
         """The S5 SSM
         Args:
@@ -173,25 +171,11 @@ class S5SSM(hk.Module):
         self.D = hk.get_parameter("D", (h,), hki.RandomUniform())
 
         # Initialize learnable discretization step size
-        # TODO(kavorite): untie discretization from underlying parametrization
-        # to make the API boundary easier to negotiate for dynamic step_scales
         self.log_step = hk.get_parameter(
             "log_step", shape=(h,), init=init_log_steps(dt_min, dt_max)
         )
-        step = step_scale * jnp.exp(self.log_step[:, 0])
 
-        # Discretize
-        if discretization in ["zoh"]:
-            discretize = discretize_zoh
-        elif discretization in ["bilinear"]:
-            discretize = discretize_bilinear
-        else:
-            err = f"Unknown discretization method {discretization}"
-            raise NotImplementedError(err)
-
-        self.Lambda_bar, self.B_bar = discretize(self.Lambda, self.B_tilde, step)
-
-    def __call__(self, input_sequence):
+    def __call__(self, input_sequence, step_scale=1.0, discretization="zoh"):
         """
         Compute the LxH output of the S5 SSM given an LxH input sequence
         using a parallel scan.
@@ -202,6 +186,14 @@ class S5SSM(hk.Module):
             output sequence (float32): (L, H)
 
         """
-        return apply_ssm(
-            self.Lambda_bar, self.B_bar, self.C_tilde, self.D, input_sequence
-        )
+        # Discretize
+        if discretization in ["zoh"]:
+            discretize = discretize_zoh
+        elif discretization in ["bilinear"]:
+            discretize = discretize_bilinear
+        else:
+            err = f"Unknown discretization method {discretization}"
+            raise NotImplementedError(err)
+        step = step_scale * jnp.exp(self.log_step[:, 0])
+        Lambda_bar, B_bar = discretize(self.Lambda, self.B_tilde, step)
+        return apply_ssm(Lambda_bar, B_bar, self.C_tilde, self.D, input_sequence)
