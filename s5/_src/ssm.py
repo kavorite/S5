@@ -175,7 +175,7 @@ class S5SSM(hk.Module):
 
         # Initialize learnable discretization step size
         self.log_step = hk.get_parameter(
-            "log_step", shape=(h,), init=init_log_steps(dt_min, dt_max)
+            "log_step", shape=(p,), init=init_log_steps(dt_min, dt_max)
         )
 
     def __call__(self, input_sequence, *, step_scale=1.0, discretization="zoh"):

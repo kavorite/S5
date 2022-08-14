@@ -1,6 +1,7 @@
 from typing import Optional
 
 import haiku as hk
+import jax
 
 from .ssm import S5SSM
 from .ssm_init import make_Normal_HiPPO
@@ -43,7 +44,7 @@ class S5Encoder(hk.Module):
     ):
         """Initializes the ssm, batch/layer norm and dropout"""
         super().__init__(name=name)
-        Lambda, V = make_Normal_HiPPO(width)
+        Lambda, V = make_Normal_HiPPO(state_width)
         Vinv = V.conj().T
         BC_init = "factorized" if factor_rank is not None else "dense"
         self.seq = S5SSM(
@@ -51,6 +52,7 @@ class S5Encoder(hk.Module):
         )
         self.norm = hk.LayerNorm(-1, True, True)
         self.prenorm = prenorm
+        self.width = width
 
     def __call__(self, x, timescale=1.0, dropout_rate=None, rng=None):
         """
@@ -62,10 +64,12 @@ class S5Encoder(hk.Module):
             output sequence (float32): (L, d_model)
 
         """
+        if x.shape[-1] != self.width:
+            x = jax.nn.gelu(hk.Linear(self.width, name="resampling")(x))
         skip = x
         if self.prenorm:
             x = self.norm(x)
-        x = self.seq(x)
+        x = hk.vmap(self.seq, split_rng=not hk.running_init())(x)
         if dropout_rate is not None:
             x = hk.dropout(rng, dropout_rate, x)
         x = skip + x
