@@ -35,15 +35,17 @@ class S5Encoder(hk.Module):
     def __init__(
         self,
         width: int,
-        state_width: int,
+        state_width: Optional[int] = None,
         factor_rank: Optional[int] = None,
         dt_min=0.001,
         dt_max=0.1,
         prenorm: bool = False,
+        skip: bool = True,
         name=None,
     ):
         """Initializes the ssm, batch/layer norm and dropout"""
         super().__init__(name=name)
+        state_width = state_width or width
         Lambda, V = make_Normal_HiPPO(state_width)
         Vinv = V.conj().T
         BC_init = "factorized" if factor_rank is not None else "dense"
@@ -53,8 +55,9 @@ class S5Encoder(hk.Module):
         self.norm = hk.LayerNorm(-1, True, True)
         self.prenorm = prenorm
         self.width = width
+        self.skip = skip
 
-    def __call__(self, x, timescale=1.0, dropout_rate=None, rng=None):
+    def __call__(self, x, step_scale=1.0, dropout_rate=None, rng=None):
         """
         Compute the LxH output of S5 layer given an LxH input.
 
@@ -64,15 +67,17 @@ class S5Encoder(hk.Module):
             output sequence (float32): (L, d_model)
 
         """
-        if x.shape[-1] != self.width:
-            x = jax.nn.gelu(hk.Linear(self.width, name="resampling")(x))
-        skip = x
+        assert x.shape[-1] == self.width, "Input must match the layer width."
+        if self.skip:
+            skip = x
         if self.prenorm:
             x = self.norm(x)
-        x = hk.vmap(self.seq, split_rng=not hk.running_init())(x)
+        with inject_step_scale(step_scale):
+            x = hk.vmap(self.seq, split_rng=not hk.running_init())(x)
         if dropout_rate is not None:
             x = hk.dropout(rng, dropout_rate, x)
-        x = skip + x
+        if self.skip:
+            x = skip + x
         if not self.prenorm:
             x = self.norm(x)
         return x
