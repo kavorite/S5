@@ -39,15 +39,18 @@ class S5Encoder(hk.Module):
         dt_min=0.001,
         dt_max=0.1,
         prenorm: bool = False,
+        name=None,
     ):
         """Initializes the ssm, batch/layer norm and dropout"""
+        super().__init__(name=name)
         Lambda, V = make_Normal_HiPPO(width)
         Vinv = V.conj().T
-        BC_init = ("factorized" if factor_rank is not None else "dense",)
+        BC_init = "factorized" if factor_rank is not None else "dense"
         self.seq = S5SSM(
             Lambda, V, Vinv, width, state_width, factor_rank, BC_init, dt_min, dt_max
         )
         self.norm = hk.LayerNorm(-1, True, True)
+        self.prenorm = prenorm
 
     def __call__(self, x, timescale=1.0, dropout_rate=None, rng=None):
         """

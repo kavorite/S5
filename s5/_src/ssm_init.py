@@ -110,7 +110,7 @@ def init_columnwise_B(shape, dtype):
     """
     assert jnp.issubdtype(dtype, jnp.inexact)
     shape = shape[:2] + ((2,) if len(shape) == 3 else ())
-    lecun = hki.VarianceScaling(0.5 if len(shape) == 3 else 1.0, fan_in_axes=0)
+    lecun = hki.VarianceScaling(0.5 if len(shape) == 3 else 1.0, fan_in_axes=(0,))
     return lecun(shape, dtype)
 
 
@@ -129,7 +129,7 @@ def init_VinvB(init_fun, Vinv):
     """
 
     def init(shape, dtype):
-        B = init_fun(shape, dtype)
+        B = init_fun(shape[:2], dtype)
         VinvB = Vinv @ B
         VinvB_real = VinvB.real
         VinvB_imag = VinvB.imag
@@ -145,7 +145,7 @@ def init_columnwise_VinvB(init_fun, Vinv):
     certain random seeds until we rerun experiments."""
 
     def init(shape, dtype):
-        B = init_fun(shape, dtype).T
+        B = init_fun(shape[:2], dtype)
         VinvB = Vinv @ B
         VinvB_real = VinvB.real
         VinvB_imag = VinvB.imag
@@ -168,8 +168,8 @@ def init_rowwise_C(shape, dtype):
      Returns:
          sampled C matrix (float32) of shape (H,P,2) (for complex parameterization)
     """
-    lecun = hki.VarianceScaling(0.5, fan_in_axes=0)(shape[:2] + (2,), dtype)
-    C = lecun(shape, dtype)
+    lecun = hki.VarianceScaling(0.5, fan_in_axes=(0,))
+    C = lecun(shape[:2] + (2,), dtype)
     return C
 
 

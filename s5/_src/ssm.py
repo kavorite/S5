@@ -97,6 +97,7 @@ class S5SSM(hk.Module):
         BC_init: str,
         dt_min: float,
         dt_max: float,
+        name=None,
     ):
         """The S5 SSM
         Args:
@@ -124,27 +125,31 @@ class S5SSM(hk.Module):
                                     on a different resolution for the speech commands benchmark
         """
         # Initialize diagonal state to state matrix Lambda (eigenvalues)
+        super().__init__(name=name)
         self.Lambda = hk.get_parameter(
-            "Lambda", shape=Lambda_init.shape, init=hki.Constant(Lambda_init)
+            "Lambda",
+            shape=Lambda_init.shape,
+            dtype=Lambda_init.dtype,
+            init=hki.Constant(Lambda_init),
         )
 
         # Initialize input to state (B) and state to output (C) matrices
         # in basis of eigenvectors
         if BC_init in ["factorized"]:
             # Use a low rank factorization of rank k for B and C
-            self.BH = hk.get_parameter("BH", (h, k, 2), init=init_columnwise_B)
-            self.BP = hk.get_parameter("BP", (p, k), init=init_columnwise_B)
-            self.CH = hk.get_parameter("CH", (k, h, 2), init=init_rowwise_C)
-            self.CP = hk.get_parameter("CP", (k, p, 2), init=init_rowwise_C)
+            BH = hk.get_parameter("BH", (h, k, 2), init=init_columnwise_B)
+            BP = hk.get_parameter("BP", (p, k, 2), init=init_columnwise_B)
+            CH = hk.get_parameter("CH", (k, h, 2), init=init_rowwise_C)
+            CP = hk.get_parameter("CP", (k, p, 2), init=init_rowwise_C)
             # Parameterize complex numbers
-            self.BH = self.BH[..., 0] + 1j * self.BH[..., 1]
-            self.BP = self.BP[..., 0] + 1j * self.BP[..., 1]
+            self.BH = BH[..., 0] + 1j * BH[..., 1]
+            self.BP = BP[..., 0] + 1j * BP[..., 1]
 
-            self.CH = self.CH[0] + 1j * self.CH[1]
-            self.CP = self.CP[..., 0] + 1j * self.CP[..., 1]
+            self.CH = CH[..., 0] + 1j * CH[..., 1]
+            self.CP = CP[..., 0] + 1j * CP[..., 1]
 
-            B_tilde = self.BP @ self.BH
-            self.C_tilde = self.CH @ self.CP
+            self.B_tilde = self.BP @ self.BH.T
+            self.C_tilde = self.CH.T @ self.CP
 
         else:
             # Initialize B and C as dense matrices
@@ -154,21 +159,19 @@ class S5SSM(hk.Module):
                 C_init = init_rowwise_C
             elif BC_init in ["dense"]:
                 B_eigen_init = init_VinvB
-                B_init = hki.VarianceScaling(1.0)
-                C_init = hki.VarianceScaling(1.0)
+                lecun = hki.VarianceScaling(1.0)
+                B_init = C_init = lecun
             else:
-                raise NotImplementedError(
-                    "BC_init method {} not implemented".format(BC_init)
-                )
+                raise NotImplementedError(f"BC_init method {BC_init} not implemented")
 
-            self.B = hk.get_parameter("B", (p, h), init=B_eigen_init(B_init, Vinv))
+            self.B = hk.get_parameter("B", (p, h, 2), init=B_eigen_init(B_init, Vinv))
             self.C = hk.get_parameter("C", (h, p, 2), init=init_CV(C_init, V))
             # Parameterize complex numbers
             self.B_tilde = self.B[..., 0] + 1j * self.B[..., 1]
             self.C_tilde = self.C[..., 0] + 1j * self.C[..., 1]
 
         # Initialize feedthrough (D) matrix
-        self.D = hk.get_parameter("D", (h,), hki.RandomUniform())
+        self.D = hk.get_parameter("D", (h,), init=hki.RandomUniform())
 
         # Initialize learnable discretization step size
         self.log_step = hk.get_parameter(
@@ -194,6 +197,6 @@ class S5SSM(hk.Module):
         else:
             err = f"Unknown discretization method {discretization}"
             raise NotImplementedError(err)
-        step = step_scale * jnp.exp(self.log_step[:, 0])
+        step = step_scale * jnp.exp(self.log_step)
         Lambda_bar, B_bar = discretize(self.Lambda, self.B_tilde, step)
         return apply_ssm(Lambda_bar, B_bar, self.C_tilde, self.D, input_sequence)
