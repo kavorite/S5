@@ -1,6 +1,7 @@
 import haiku.initializers as hki
 import jax.numpy as jnp
 import numpy as np
+import scipy.linalg
 
 
 def make_HiPPO(N):
@@ -27,7 +28,16 @@ def make_HiPPO(N):
     return -np.array(mat)
 
 
-def make_Normal_HiPPO(N):
+def make_Normal_S(N):
+    nhippo = make_HiPPO(N)
+    # Add in a rank 1 term. Makes it Normal.
+    p = 0.5 * np.sqrt(2 * np.arange(1, N + 1) + 1.0)
+    q = 2 * p
+    S = nhippo + p[:, np.newaxis] * q[np.newaxis, :]
+    return S
+
+
+def make_Normal_HiPPO(N, B=1):
     """Create a normal approximation to HiPPO-LegS matrix.
     For HiPPO matrix A, A=S+pqT is normal plus low-rank for
     a certain normal matrix S and low rank terms p and q.
@@ -41,18 +51,15 @@ def make_Normal_HiPPO(N):
 
     Args:
         N (int32): state size
+        B (int32): diagonal blocks
     Returns:
         Lambda (complex64): eigenvalues of S (N,)
         V      (complex64): eigenvectors of S (N,N)
     """
 
-    # Make -HiPPO
-    nhippo = make_HiPPO(N)
-
-    # Add in a rank 1 term. Makes it Normal.
-    p = 0.5 * np.sqrt(2 * np.arange(1, N + 1) + 1.0)
-    q = 2 * p
-    S = nhippo + p[:, np.newaxis] * q[np.newaxis, :]
+    assert N % B == 0, "N must divide blocks"
+    S = (make_Normal_S(N // B),) * B
+    S = scipy.linalg.block_diag(*S)
 
     # Diagonalize S to V \Lambda V^*
     Lambda, V = np.linalg.eig(S)

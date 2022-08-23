@@ -32,6 +32,7 @@ class S5(hk.Module):
     def __init__(
         self,
         width: int,
+        block_count: int = 1,
         state_width: Optional[int] = None,
         factor_rank: Optional[int] = None,
         dt_min=0.001,
@@ -41,7 +42,7 @@ class S5(hk.Module):
         """Initializes the ssm and dropout"""
         super().__init__(name=name)
         state_width = state_width or width
-        Lambda, V = make_Normal_HiPPO(state_width)
+        Lambda, V = make_Normal_HiPPO(state_width, block_count)
         Vinv = V.conj().T
         BC_init = "factorized" if factor_rank is not None else "dense"
         self.width = width
