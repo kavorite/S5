@@ -32,9 +32,9 @@ class S5(hk.Module):
     def __init__(
         self,
         width: int,
-        block_count: int = 1,
         state_width: Optional[int] = None,
         factor_rank: Optional[int] = None,
+        block_count: int = 1,
         dt_min=0.001,
         dt_max=0.1,
         name=None,
