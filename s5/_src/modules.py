@@ -35,9 +35,9 @@ class S5(hk.Module):
         state_width: Optional[int] = None,
         factor_rank: Optional[int] = None,
         block_count: int = 1,
-        dt_min=0.001,
-        dt_max=0.1,
-        name=None,
+        dt_min: float = 0.001,
+        dt_max: float = 0.1,
+        name: Optional[str] = None,
     ):
         """Initializes the ssm and dropout"""
         super().__init__(name=name)
