@@ -1,12 +1,12 @@
 import haiku as hk
 import numpy as np
 
-from s5 import S5Encoder
+from s5 import S5
 
 
 @hk.transform
 def model(x):
-    return S5Encoder(16, 16, factor_rank=8)(x)
+    return S5(16, 16, 8)(x)
 
 
 rng = hk.PRNGSequence(42)
