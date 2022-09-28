@@ -85,6 +85,19 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde, D, input_sequence):
     return jax.vmap(lambda x, u: (C_tilde @ x + D * u).real)(xs, input_sequence)
 
 
+def apply_ssm_liquid(Lambda_bar, B_bar, C_tilde, D, input_sequence):
+    """Liquid time constant SSM á la dynamical systems given in Eq. 8 of
+    https://arxiv.org/abs/2209.12951"""
+    Lambda_elements = Lambda_bar * jnp.ones(
+        (input_sequence.shape[0], Lambda_bar.shape[0])
+    )
+    Bu_elements = jax.vmap(lambda u: B_bar @ u)(input_sequence)
+    _, xs = jax.lax.associative_scan(
+        binary_operator, (Lambda_elements + Bu_elements, Bu_elements)
+    )
+    return jax.vmap(lambda x, u: (C_tilde @ x + D * u).real)(xs, input_sequence)
+
+
 class S5SSM(hk.Module):
     def __init__(
         self,
@@ -178,7 +191,15 @@ class S5SSM(hk.Module):
             "log_step", shape=(p,), init=init_log_steps(dt_min, dt_max)
         )
 
-    def __call__(self, input_sequence, *, step_scale=1.0, discretization="zoh"):
+    def __call__(
+        self,
+        input_sequence,
+        *,
+        step_scale=1.0,
+        discretization="zoh",
+        liquid=False,
+        degree=1,
+    ):
         """
         Compute the LxH output of the S5 SSM given an LxH input sequence
         using a parallel scan.
@@ -199,4 +220,11 @@ class S5SSM(hk.Module):
             raise NotImplementedError(err)
         step = step_scale * jnp.exp(self.log_step)
         Lambda_bar, B_bar = discretize(self.Lambda, self.B_tilde, step)
-        return apply_ssm(Lambda_bar, B_bar, self.C_tilde, self.D, input_sequence)
+        if degree != 1:
+            assert degree > 1
+            assert (
+                B_bar.shape[-2] == B_bar.shape[-1]
+            ), "higher-order input operators must be full-rank"
+            B_bar **= degree
+        forward = apply_ssm_liquid if liquid else apply_ssm
+        return forward(Lambda_bar, B_bar, self.C_tilde, self.D, input_sequence)
