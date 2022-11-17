@@ -86,6 +86,19 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde, D, input_sequence):
     return jax.vmap(lambda x, u: (C_tilde @ x + D * u).real)(xs, input_sequence)
 
 
+def apply_ssm_liquid(Lambda_bar, B_bar, C_tilde, D, input_sequence):
+    """Liquid time constant SSM á la dynamical systems given in Eq. 8 of
+    https://arxiv.org/abs/2209.12951"""
+    Lambda_elements = Lambda_bar * jnp.ones(
+        (input_sequence.shape[0], Lambda_bar.shape[0])
+    )
+    Bu_elements = jax.vmap(lambda u: B_bar @ u)(input_sequence)
+    _, xs = jax.lax.associative_scan(
+        binary_operator, (Lambda_elements + Bu_elements, Bu_elements)
+    )
+    return jax.vmap(lambda x, u: (C_tilde @ x + D * u).real)(xs, input_sequence)
+
+
 class S5SSM(hk.RNNCore):
     def __init__(
         self,
@@ -98,6 +111,8 @@ class S5SSM(hk.RNNCore):
         BC_init: str,
         dt_min: float,
         dt_max: float,
+        liquid: bool = False,
+        degree: int = 1,
         name=None,
     ):
         """The S5 SSM
@@ -127,6 +142,8 @@ class S5SSM(hk.RNNCore):
         """
         # Initialize diagonal state to state matrix Lambda (eigenvalues)
         super().__init__(name=name)
+        self.liquid = liquid
+        self.degree = degree
         self.Lambda = hk.get_parameter(
             "Lambda",
             shape=Lambda_init.shape,
@@ -211,10 +228,21 @@ class S5SSM(hk.RNNCore):
             raise NotImplementedError(err)
         step = step_scale * jnp.exp(self.log_step)
         Lambda_bar, B_bar = discretize(self.Lambda, self.B_tilde, step)
-        if prev_state is not None:
-            # Eq. 2
-            x = Lambda_bar @ prev_state + B_bar @ signal
+        if self.degree != 1:
+            assert (
+                B_bar.shape[-2] == B_bar.shape[-1]
+            ), "higher-order input operators must be full-rank"
+            B_bar **= self.degree
+        apply_as_rnn = prev_state is not None
+        if apply_as_rnn:
+            # https://arxiv.org/abs/2209.12951v1, Eq. 9
+            Bu = B_bar @ signal
+            if self.liquid:
+                Lambda_bar += Bu
+            # https://arxiv.org/abs/2208.04933v2, Eq. 2
+            x = Lambda_bar @ prev_state + Bu
             y = self.C_tilde @ x + self.D * signal
             return y, x
         else:
-            return apply_ssm(Lambda_bar, B_bar, self.C_tilde, self.D, signal)
+            forward = apply_ssm_liquid if self.liquid else apply_ssm
+            return forward(Lambda_bar, B_bar, self.C_tilde, self.D, signal)
