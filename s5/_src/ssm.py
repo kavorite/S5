@@ -66,7 +66,7 @@ def binary_operator(q_i, q_j):
     return A_j * A_i, A_j * b_i + b_j
 
 
-def apply_ssm(Lambda_bar, B_bar, C_tilde, D, input_sequence):
+def apply_ssm(Lambda_bars, B_bars, C_tilde, D, input_sequence):
     """Compute the LxH output of discretized SSM given an LxH input.
     Args:
         Lambda_bar (complex64): discretized diagonal state matrix    (P,)
@@ -77,24 +77,18 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde, D, input_sequence):
     Returns:
         ys (float32): the SSM outputs (S5 layer preactivations)      (L, H)
     """
-    Lambda_elements = Lambda_bar * jnp.ones(
-        (input_sequence.shape[0], Lambda_bar.shape[0])
-    )
-    Bu_elements = jax.vmap(lambda u: B_bar @ u)(input_sequence)
 
-    _, xs = jax.lax.associative_scan(binary_operator, (Lambda_elements, Bu_elements))
+    Bu_elements = jax.vmap(lambda B_bar, u: B_bar @ u)(B_bars, input_sequence)
+    _, xs = jax.lax.associative_scan(binary_operator, (Lambda_bars, Bu_elements))
     return jax.vmap(lambda x, u: (C_tilde @ x + D * u).real)(xs, input_sequence)
 
 
-def apply_ssm_liquid(Lambda_bar, B_bar, C_tilde, D, input_sequence):
+def apply_ssm_liquid(Lambda_bars, B_bars, C_tilde, D, input_sequence):
     """Liquid time constant SSM á la dynamical systems given in Eq. 8 of
     https://arxiv.org/abs/2209.12951"""
-    Lambda_elements = Lambda_bar * jnp.ones(
-        (input_sequence.shape[0], Lambda_bar.shape[0])
-    )
-    Bu_elements = jax.vmap(lambda u: B_bar @ u)(input_sequence)
+    Bu_elements = jax.vmap(lambda B_bar, u: B_bar @ u)(B_bars, input_sequence)
     _, xs = jax.lax.associative_scan(
-        binary_operator, (Lambda_elements + Bu_elements, Bu_elements)
+        binary_operator, (Lambda_bars + Bu_elements, Bu_elements)
     )
     return jax.vmap(lambda x, u: (C_tilde @ x + D * u).real)(xs, input_sequence)
 
@@ -234,6 +228,11 @@ class S5SSM(hk.RNNCore):
             ), "higher-order input operators must be full-rank"
             B_bar **= self.degree
         apply_as_rnn = prev_state is not None
+
+        if jnp.isscalar(step_scale):
+            step_scale = jnp.ones(signal.shape[-2]) * step_scale
+        step = step_scale[:, None] * jnp.exp(self.log_step)
+
         if apply_as_rnn:
             # https://arxiv.org/abs/2209.12951v1, Eq. 9
             Bu = B_bar @ signal
@@ -244,5 +243,8 @@ class S5SSM(hk.RNNCore):
             y = self.C_tilde @ x + self.D * signal
             return y, x
         else:
+            Lambda_bars, B_bars = jax.vmap(discretize, (None, None, 0))(
+                self.Lambda, self.B_tilde, step
+            )
             forward = apply_ssm_liquid if self.liquid else apply_ssm
-            return forward(Lambda_bar, B_bar, self.C_tilde, self.D, signal)
+            return forward(Lambda_bars, B_bars, self.C_tilde, self.D, signal)
