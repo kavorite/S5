@@ -227,19 +227,19 @@ class S5SSM(hk.RNNCore):
                 B_bar.shape[-2] == B_bar.shape[-1]
             ), "higher-order input operators must be full-rank"
             B_bar **= self.degree
-        apply_as_rnn = prev_state is not None
 
         if jnp.isscalar(step_scale):
             step_scale = jnp.ones(signal.shape[-2]) * step_scale
         step = step_scale[:, None] * jnp.exp(self.log_step)
 
+        apply_as_rnn = prev_state is not None
         if apply_as_rnn:
             # https://arxiv.org/abs/2209.12951v1, Eq. 9
             Bu = B_bar @ signal
             if self.liquid:
                 Lambda_bar += Bu
             # https://arxiv.org/abs/2208.04933v2, Eq. 2
-            x = Lambda_bar @ prev_state + Bu
+            x = Lambda_bar * prev_state + Bu
             y = self.C_tilde @ x + self.D * signal
             return y, x
         else:
