@@ -2,6 +2,7 @@ import haiku as hk
 import haiku.initializers as hki
 import jax
 import jax.numpy as jnp
+from typing import Optional
 
 from .ssm_init import (
     init_columnwise_B,
@@ -85,7 +86,7 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde, D, input_sequence):
     return jax.vmap(lambda x, u: (C_tilde @ x + D * u).real)(xs, input_sequence)
 
 
-class S5SSM(hk.Module):
+class S5SSM(hk.RNNCore):
     def __init__(
         self,
         Lambda_init: jnp.DeviceArray,
@@ -178,13 +179,24 @@ class S5SSM(hk.Module):
             "log_step", shape=(p,), init=init_log_steps(dt_min, dt_max)
         )
 
-    def __call__(self, input_sequence, *, step_scale=1.0, discretization="zoh"):
+    def initial_state(self, batch_size: Optional[int]):
+        batch_shape = (batch_size,) if batch_size is not None else ()
+        return jnp.zeros((*batch_shape, self.C_tilde[-2]))
+
+    def __call__(
+        self,
+        signal,
+        prev_state=None,
+        *,
+        step_scale=1.0,
+        discretization="zoh",
+    ):
         """
         Compute the LxH output of the S5 SSM given an LxH input sequence
         using a parallel scan.
 
         Args:
-             input_sequence (float32): input sequence (L, H)
+            input_sequence (float32): input sequence (L, H)
         Returns:
             output sequence (float32): (L, H)
 
@@ -199,4 +211,10 @@ class S5SSM(hk.Module):
             raise NotImplementedError(err)
         step = step_scale * jnp.exp(self.log_step)
         Lambda_bar, B_bar = discretize(self.Lambda, self.B_tilde, step)
-        return apply_ssm(Lambda_bar, B_bar, self.C_tilde, self.D, input_sequence)
+        if prev_state is not None:
+            # Eq. 2
+            x = Lambda_bar @ prev_state + B_bar @ signal
+            y = self.C_tilde @ x + self.D * signal
+            return y, x
+        else:
+            return apply_ssm(Lambda_bar, B_bar, self.C_tilde, self.D, signal)
