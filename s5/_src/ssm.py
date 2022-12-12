@@ -240,7 +240,7 @@ class S5SSM(hk.RNNCore):
                 Lambda_bar += Bu
             # https://arxiv.org/abs/2208.04933v2, Eq. 2
             x = Lambda_bar * prev_state + Bu
-            y = self.C_tilde @ x + self.D * signal
+            y = (self.C_tilde @ x + self.D * signal).real
             return y, x
         else:
             Lambda_bars, B_bars = jax.vmap(discretize, (None, None, 0))(
