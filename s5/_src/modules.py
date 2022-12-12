@@ -33,6 +33,8 @@ class S5(hk.RNNCore):
         block_count: int = 1,
         dt_min: float = 0.001,
         dt_max: float = 0.1,
+        liquid: bool = False,
+        degree: int = 1,
         name: Optional[str] = None,
     ):
         """Initializes the ssm and dropout"""
@@ -52,6 +54,8 @@ class S5(hk.RNNCore):
             BC_init,
             dt_min,
             dt_max,
+            liquid,
+            degree,
         )
 
     def __call__(self, x, prev_state=None, step_scale=1.0, dropout_rate=0, rng=None):
